@@ -7,44 +7,27 @@
  * If you modified or used parts of this code, please give proper credit.
 */
 
-import { execSync } from "child_process";
 import ping from "ping";
+import os from "os";
 
 type PingRes = {
   ip: string,
   took: number
 }
 
-// XXX: THIS IS MY METHOD FOR GETTING THE WLAN IPv4 Address
-// XXX: DON'T JUDGE ME, LOL.
 function getWlanIp(): string {
-  console.log(`Retrieving network interfaces...`);
-  let ifconfig: string;
-  try {
-    ifconfig = execSync("ifconfig", { stdio: ["pipe", "pipe", "ignore"], encoding: "utf-8" });
-  } catch (e: any) {
-    throw new Error(`Error running "ifconfig": ${e.message}`);
-  }
-
-  const wlan0Index = ifconfig.indexOf("wlan0");
-  if (wlan0Index === -1) {
-    console.log("'wlan0' interface not found. Is WiFi or Hotspot enabled?");
-    throw new Error("Hotspot or WiFi is not turned on");
-  }
-  console.log("Found 'wlan0' interface. Parsing details...");
-
-  const wlanint = ifconfig.slice(wlan0Index);
-  for (const nl of wlanint.split("\n")) {
-    if (nl.includes("inet")) {
-      const ipv4 = nl.match(/\d+\.\d+\.\d+\.\d+/);
-      if (ipv4) return ipv4[0];
-      console.log("'inet' found but no valid IPv4 address.");
-      throw new Error(`Unable to find WLAN IPv4. Line: ${nl}`);
+  const interfaces = os.networkInterfaces();
+  for (const iface in interfaces) {
+    const detailsArray = interfaces[iface];
+    if (detailsArray) {
+      for (const details of detailsArray) {
+        if (details.family === 'IPv4' && iface === 'wlan0') {
+          return details.address;
+        }
+      }
     }
   }
-
-  console.log("Finished parsing but no IPv4 address was found.");
-  throw new Error("No IPv4 address found for wlan0");
+  throw new Error("Could not find WLAN IPv4 address.");
 }
 
 async function scanIP(wlanipv4: string): Promise<Array<PingRes>>{
